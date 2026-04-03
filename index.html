@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Trip Planner</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f0; color: #1a1a18; min-height: 100vh; }
+
+    header { background: #1D9E75; color: #fff; padding: 20px 32px; }
+    header h1 { font-size: 22px; font-weight: 600; }
+    header p  { font-size: 13px; opacity: .75; margin-top: 4px; }
+
+    .container { max-width: 960px; margin: 32px auto; padding: 0 24px; }
+
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+    .tab { padding: 8px 18px; border: 1.5px solid #1D9E75; border-radius: 20px;
+           background: #fff; color: #1D9E75; cursor: pointer; font-size: 14px;
+           font-weight: 500; transition: all .15s; }
+    .tab:hover, .tab.active { background: #1D9E75; color: #fff; }
+
+    .filter-row { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .filter-row input, .filter-row select {
+      padding: 8px 14px; border: 1.5px solid #ccc; border-radius: 8px;
+      font-size: 14px; background: #fff; flex: 1; min-width: 160px; }
+    .filter-row button {
+      padding: 8px 20px; background: #0F6E56; color: #fff;
+      border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; }
+    .filter-row button:hover { background: #085041; }
+
+    #result { background: #fff; border-radius: 12px; padding: 24px;
+               border: 1px solid #e0ddd6; min-height: 160px; }
+    .card { border: 1px solid #e0ddd6; border-radius: 10px; padding: 16px;
+             margin-bottom: 14px; background: #fafaf8; }
+    .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .card p, .card li { font-size: 13px; color: #555; line-height: 1.6; }
+    .card ul { padding-left: 18px; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 20px;
+              font-size: 11px; font-weight: 600; background: #E1F5EE; color: #0F6E56; margin-right: 6px; }
+    .badge.weather { background: #E6F1FB; color: #185FA5; }
+    .badge.day { background: #FAEEDA; color: #854F0B; }
+    .error { color: #A32D2D; padding: 12px; background: #FCEBEB; border-radius: 8px; }
+    .loading { color: #888; font-style: italic; }
+
+    pre { font-size: 12px; background: #f0ede8; padding: 12px; border-radius: 8px; overflow-x: auto; }
+    .endpoint-pill { font-size: 12px; color: #0F6E56; background: #E1F5EE;
+                     padding: 2px 10px; border-radius: 6px; font-family: monospace; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Trip Planner</h1>
+  <p>A 2-tier k8s demo app — Frontend (Node.js) + Backend (Python/Flask)</p>
+</header>
+<div class="container">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('locations')">Locations</button>
+    <button class="tab" onclick="switchTab('mustvisit')">Must Visit</button>
+    <button class="tab" onclick="switchTab('weather')">Weather</button>
+    <button class="tab" onclick="switchTab('itinerary')">Itinerary</button>
+    <button class="tab" onclick="switchTab('raw')">Raw API</button>
+  </div>
+
+  <div id="tab-locations">
+    <div class="filter-row">
+      <button onclick="fetchData('/locations')">Load all locations</button>
+    </div>
+    <div id="result"><p class="loading">Click "Load all locations" to start.</p></div>
+  </div>
+
+  <div id="tab-mustvisit" style="display:none">
+    <div class="filter-row">
+      <select id="mv-loc">
+        <option value="">All locations</option>
+        <option>Goa</option><option>Manali</option><option>Jaipur</option>
+        <option>Kerala</option><option>Leh-Ladakh</option>
+      </select>
+      <button onclick="fetchLocationData('/mustvisit','mv-loc')">Search</button>
+    </div>
+    <div id="result"><p class="loading">Select a location above.</p></div>
+  </div>
+
+  <div id="tab-weather" style="display:none">
+    <div class="filter-row">
+      <select id="w-loc">
+        <option value="">All locations</option>
+        <option>Goa</option><option>Manali</option><option>Jaipur</option>
+        <option>Kerala</option><option>Leh-Ladakh</option>
+      </select>
+      <button onclick="fetchLocationData('/weather','w-loc')">Get weather</button>
+    </div>
+    <div id="result"><p class="loading">Select a location above.</p></div>
+  </div>
+
+  <div id="tab-itinerary" style="display:none">
+    <div class="filter-row">
+      <select id="it-loc">
+        <option value="">— pick a location —</option>
+        <option>Goa</option><option>Manali</option>
+      </select>
+      <button onclick="fetchLocationData('/itinerary','it-loc')">Get itinerary</button>
+    </div>
+    <div id="result"><p class="loading">Select a location above.</p></div>
+  </div>
+
+  <div id="tab-raw" style="display:none">
+    <div class="filter-row">
+      <input id="raw-url" placeholder="/api/locations" value="/api/locations"/>
+      <button onclick="rawFetch()">Fetch</button>
+    </div>
+    <div id="result"><p class="loading">Enter any API path and hit Fetch.</p></div>
+  </div>
+</div>
+
+<script>
+let activeTab = "locations";
+
+function switchTab(t) {
+  document.getElementById("tab-" + activeTab).style.display = "none";
+  document.querySelectorAll(".tab").forEach((b, i) => b.classList.remove("active"));
+  document.querySelectorAll(".tab")[["locations","mustvisit","weather","itinerary","raw"].indexOf(t)].classList.add("active");
+  document.getElementById("tab-" + t).style.display = "";
+  activeTab = t;
+  document.getElementById("result") // reset shown result on tab switch
+}
+
+function setResult(html) {
+  document.querySelector("#tab-" + activeTab + " #result, #result").innerHTML = html;
+}
+
+function showLoading() { setResult('<p class="loading">Loading...</p>'); }
+
+async function fetchData(url) {
+  showLoading();
+  try {
+    const r = await fetch(url);
+    const d = await r.json();
+    renderResult(url, d);
+  } catch(e) {
+    setResult(`<p class="error">Error: ${e.message}</p>`);
+  }
+}
+
+async function fetchLocationData(base, selectId) {
+  const loc = document.getElementById(selectId).value;
+  const url = loc ? `${base}?location=${encodeURIComponent(loc)}` : base;
+  await fetchData(url);
+}
+
+async function rawFetch() {
+  const url = document.getElementById("raw-url").value || "/api/locations";
+  showLoading();
+  try {
+    const r = await fetch(url);
+    const d = await r.json();
+    const el = document.querySelector("#tab-raw #result") || document.getElementById("result");
+    el.innerHTML = `<span class="endpoint-pill">GET ${url}</span><br><br><pre>${JSON.stringify(d, null, 2)}</pre>`;
+  } catch(e) {
+    setResult(`<p class="error">Error: ${e.message}</p>`);
+  }
+}
+
+function renderResult(url, d) {
+  let html = `<span class="endpoint-pill">GET ${url}</span><br><br>`;
+
+  if (!d.success && !d.data) {
+    html += `<p class="error">${d.error || JSON.stringify(d)}</p>`;
+  } else if (Array.isArray(d.data) && d.data[0]?.name && d.data[0]?.type) {
+    // Locations list
+    d.data.forEach(l => {
+      html += `<div class="card">
+        <h3>${l.name} <span class="badge">${l.type}</span></h3>
+        <p>${l.description}</p>
+        <p style="margin-top:8px"><strong>Best season:</strong> ${l.best_season} &nbsp;|&nbsp; <strong>Rating:</strong> ${l.rating}/5</p>
+      </div>`;
+    });
+  } else if (d.data && d.location && d.data[0]?.place) {
+    // Must visit
+    html += `<h3 style="margin-bottom:12px">Must-visit in ${d.location}</h3>`;
+    d.data.forEach(p => {
+      html += `<div class="card">
+        <h3>${p.place} <span class="badge">${p.category}</span></h3>
+        <p><em>Tip:</em> ${p.tip}</p>
+      </div>`;
+    });
+  } else if (d.data && d.location && d.data.temp_c !== undefined) {
+    // Weather
+    html += `<div class="card">
+      <h3>${d.location} weather <span class="badge weather">${d.data.condition}</span></h3>
+      <p>Temperature: ${d.data.temp_c}°C &nbsp;|&nbsp; Humidity: ${d.data.humidity} &nbsp;|&nbsp; Wind: ${d.data.wind}</p>
+    </div>`;
+  } else if (d.data && Array.isArray(d.data) && d.data[0]?.day) {
+    // Itinerary
+    html += `<h3 style="margin-bottom:12px">${d.location} — ${d.days}-day itinerary</h3>`;
+    d.data.forEach(day => {
+      html += `<div class="card">
+        <h3><span class="badge day">Day ${day.day}</span></h3>
+        <ul>
+          <li><strong>Morning:</strong> ${day.morning}</li>
+          <li><strong>Afternoon:</strong> ${day.afternoon}</li>
+          <li><strong>Evening:</strong> ${day.evening}</li>
+        </ul>
+      </div>`;
+    });
+  } else {
+    html += `<pre>${JSON.stringify(d, null, 2)}</pre>`;
+  }
+
+  const el = document.querySelector("#tab-" + activeTab + " #result") || document.getElementById("result");
+  el.innerHTML = html;
+}
+</script>
+</body>
+</html>
